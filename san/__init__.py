@@ -131,15 +131,15 @@ class SAN:
         
         label_unique=np.unique(labels)
         nun = len(label_unique)
-        one_hot_labels = []
-        for j in range(len(labels)):
-            lvec = np.zeros(nun)
-            lj = labels[j]
-            lvec[np.where(label_unique==lj)] = 1
-            one_hot_labels.append(lvec)
-        one_hot_labels = np.matrix(one_hot_labels)
+        # one_hot_labels = []
+        # for j in range(len(labels)):
+        #     lvec = np.zeros(nun)
+        #     lj = labels[j]
+        #     lvec[np.where(label_unique==lj)] = 1
+        #     one_hot_labels.append(lvec)
+        # one_hot_labels = np.matrix(one_hot_labels)
         logging.info("Found {} unique labels.".format(nun))
-        train_dataset = E2EDatasetLoader(features, one_hot_labels)
+        train_dataset = E2EDatasetLoader(features,labels)
         dataloader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=1)
         stopping_iteration = 0
         current_loss = np.inf
