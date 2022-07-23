@@ -127,7 +127,7 @@ class SAN:
         self.optimizer = None
         self.num_params = None
 
-    def fit(self, features, labels):  # , onehot=False
+    def fit(self, features, labels):  # , onehot=False #cksvkdmvk
         
         label_unique=np.unique(labels)
         nun = len(label_unique)
