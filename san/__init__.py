@@ -114,8 +114,8 @@ class SAN:
     def __init__(self, batch_size=32, num_epochs=32, learning_rate=0.001, stopping_crit=10, hidden_layer_size=64,num_heads=1,
                  dropout=0.2):  # , num_head=1
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#        self.loss = torch.nn.CrossEntropyLoss()
-        self.loss = torch.nn.BCELoss()
+        self.loss = torch.nn.CrossEntropyLoss()
+        #self.loss = torch.nn.BCELoss()
         self.dropout = dropout
         self.num_heads = num_heads
         self.batch_size = batch_size
