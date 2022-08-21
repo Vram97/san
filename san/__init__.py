@@ -101,7 +101,8 @@ class SANNetwork(nn.Module):
 
         # dense hidden (l2 in the paper, output)
         out = self.fc3(out)
-        out = self.sigmoid(out)
+        #out = self.sigmoid(out)
+        out = self.softmax(out)
         return out
 
     def get_attention(self, x):
