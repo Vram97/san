@@ -67,7 +67,7 @@ class SANNetwork(nn.Module):
         self.fc4_MLP=nn.Linear(50,num_classes)
         self.multi_head = nn.ModuleList([nn.Linear(input_size, input_size) for k in range(num_heads)])
         
-    def forward_attention(self, input_space, return_softmax=False):
+    def forward_attention(self, input_space, return_softmax=True):
 
         placeholder = torch.zeros(input_space.shape).to(self.device)
         for k in range(len(self.multi_head)):
