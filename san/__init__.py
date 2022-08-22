@@ -106,7 +106,7 @@ class SANNetwork(nn.Module):
         out=self.fc3_MLP(out)
         out=self.relu(out)
         out=self.fc4_MLP(out)
-        out=self.softmax(out)
+        out=self.sigmoid(out)
         
         #########################################################################################################################
 
