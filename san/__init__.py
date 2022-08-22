@@ -55,12 +55,16 @@ class SANNetwork(nn.Module):
         self.device = device
         self.softmax = nn.Softmax(dim=1)
         self.softmax2 = nn.Softmax(dim=0)
+        self.relu=nn.ReLU()
         self.activation = nn.SELU()
         self.num_heads = num_heads
         self.sigmoid = nn.Sigmoid()
         self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(input_size, hidden_layer_size)
+        self.fc2_MLP=nn.Linear(input_size,20)
         self.fc3 = nn.Linear(hidden_layer_size, num_classes)
+        self.fc3_MLP=nn.Linear(20,50)
+        self.fc4_MLP=nn.Linear(50,num_classes)
         self.multi_head = nn.ModuleList([nn.Linear(input_size, input_size) for k in range(num_heads)])
         
     def forward_attention(self, input_space, return_softmax=False):
@@ -92,16 +96,29 @@ class SANNetwork(nn.Module):
 
         # attend and aggregate
         out = self.forward_attention(x)
+        
+        ########################################################################################################################
+        
+        out=self.fc2_MLP(out)
+        out = self.dropout(out)
+        out=self.relu(out)
+        out = self.activation(out)
+        out=self.fc3_MLP(out)
+        out=self.relu(out)
+        out=self.fc4_MLP(out)
+        out=self.sigmoid(out)
+        
+        #########################################################################################################################
 
         # dense hidden (l1 in the paper)
-#        out = x
-        out = self.fc2(out)
-        out = self.dropout(out)
-        out = self.activation(out)
+# #        out = x
+#         out = self.fc2(out)
+#         out = self.dropout(out)
+#         out = self.activation(out)
 
-        # dense hidden (l2 in the paper, output)
-        out = self.fc3(out)
-        out = self.sigmoid(out)
+#         # dense hidden (l2 in the paper, output)
+#         out = self.fc3(out)
+#         out = self.sigmoid(out)
         return out
 
     def get_attention(self, x):
