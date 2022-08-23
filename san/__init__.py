@@ -119,9 +119,9 @@ class SANNetwork(nn.Module):
         
         ########################################################################################################################
         if(self.baseline==False):
-            out=MLP_forward(out)
+            out=self.MLP_forward(out)
         else:
-            out=Original_SAN(out)
+            out=self.Original_SAN(out)
         #########################################################################################################################
 
         # dense hidden (l1 in the paper)
