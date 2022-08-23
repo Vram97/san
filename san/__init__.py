@@ -49,7 +49,7 @@ def to_one_hot(lbx):
 
 
 class SANNetwork(nn.Module):
-    def __init__(self, input_size, num_classes, hidden_layer_size, dropout=0.02, num_heads=2, device="cuda"):
+    def __init__(self, input_size, num_classes, hidden_layer_size, dropout=0.02, num_heads=2, device="cuda",baseline=True):
         super(SANNetwork, self).__init__()
         self.fc1 = nn.Linear(input_size, input_size)
         self.device = device
@@ -66,8 +66,9 @@ class SANNetwork(nn.Module):
         self.fc3_MLP=nn.Linear(20,50)
         self.fc4_MLP=nn.Linear(50,num_classes)
         self.multi_head = nn.ModuleList([nn.Linear(input_size, input_size) for k in range(num_heads)])
+        self.baseline=baseline
         
-    def forward_attention(self, input_space, return_softmax=False):
+    def forward_attention(self, input_space, return_softmax=True):
 
         placeholder = torch.zeros(input_space.shape).to(self.device)
         for k in range(len(self.multi_head)):
@@ -91,34 +92,41 @@ class SANNetwork(nn.Module):
             activated_weight_matrices.append(activated_diagonal)
         output_mean = torch.mean(torch.stack(activated_weight_matrices, axis=0), axis=0)
         return output_mean
-
-    def forward(self, x):
-
-        # attend and aggregate
-        out = self.forward_attention(x)
-        
-        ########################################################################################################################
-        
-        out=self.fc2_MLP(out)
+    
+    def MLP_forward(self,input):
+        out=self.fc2_MLP(input)
         out = self.dropout(out)
         out=self.relu(out)
         out = self.activation(out)
         out=self.fc3_MLP(out)
         out=self.relu(out)
         out=self.fc4_MLP(out)
-        out=self.sigmoid(out)
+        return out
+    
+    def Original_SAN(self,input):
+        out = self.fc2(out)
+        out = self.dropout(out)
+        out = self.activation(out)
+
+        # dense hidden (l2 in the paper, output)
+        out = self.fc3(out)
+        return out
+    
+    def forward(self, x):
         
+        # attend and aggregate
+        out = self.forward_attention(x)
+        
+        ########################################################################################################################
+        if(self.baseline==False):
+            out=MLP_forward(out)
+        else:
+            out=Original_SAN(out)
         #########################################################################################################################
 
         # dense hidden (l1 in the paper)
 # #        out = x
-#         out = self.fc2(out)
-#         out = self.dropout(out)
-#         out = self.activation(out)
-
-#         # dense hidden (l2 in the paper, output)
-#         out = self.fc3(out)
-#         out = self.sigmoid(out)
+        out = self.sigmoid(out)
         return out
 
     def get_attention(self, x):
@@ -129,7 +137,7 @@ class SANNetwork(nn.Module):
 
 class SAN:
     def __init__(self, batch_size=32, num_epochs=32, learning_rate=0.001, stopping_crit=10, hidden_layer_size=64,num_heads=1,
-                 dropout=0.2):  # , num_head=1
+                 dropout=0.2,baseline=True):  # , num_head=1
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         #self.loss = torch.nn.CrossEntropyLoss()
         self.loss = torch.nn.BCELoss()
@@ -143,6 +151,7 @@ class SAN:
         self.model = None
         self.optimizer = None
         self.num_params = None
+        self.baseline=baseline
 
     def fit(self, features, labels):  # , onehot=False
         
@@ -161,7 +170,7 @@ class SAN:
         stopping_iteration = 0
         current_loss = np.inf
         self.model = SANNetwork(features.shape[1], num_classes=nun, hidden_layer_size=self.hidden_layer_size, num_heads = self.num_heads,
-                                dropout=self.dropout, device=self.device).to(self.device)
+                                dropout=self.dropout, device=self.device,baseline=self.baseline).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.num_params = sum(p.numel() for p in self.model.parameters())
         logging.info("Number of parameters {}".format(self.num_params))
