@@ -104,7 +104,7 @@ class SANNetwork(nn.Module):
         return out
     
     def Original_SAN(self,input):
-        out = self.fc2(out)
+        out = self.fc2(input)
         out = self.dropout(out)
         out = self.activation(out)
 
