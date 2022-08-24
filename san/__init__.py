@@ -114,7 +114,8 @@ class SANNetwork(nn.Module):
 
     #This function determines the output for the baseline SAN model
     def Original_SAN(self,input):
-        out = self.fc2(input)           # dense hidden (l2 in the paper, output)
+        out=self.fc1(input)
+        out = self.fc2(out)           # dense hidden (l2 in the paper, output)
         out = self.dropout(out)
         out = self.activation(out)
         out = self.fc3(out)
