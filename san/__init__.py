@@ -2,23 +2,27 @@
 # Skrlj, Dzeroski, Lavrac and Petkovic.
 
 """
-The code containing neural network part, Skrlj 2019
+The code containing the neural network part, Skrlj, 2019
+Also contains the MLP architecture suitable for DL SCA, Shivaram Srikanth, 2022
 """
-
-import torch
-# from torch.utils.data import DataLoader
-import torch.nn as nn
-from sklearn.preprocessing import OneHotEncoder
-from torch.utils.data import DataLoader, Dataset
+#Importing all necessary libraries
 import logging
 import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
 from scipy import sparse
+from sklearn.preprocessing import OneHotEncoder
 
 torch.manual_seed(123321)
 np.random.seed(123321)
 
 logging.basicConfig(format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 logging.getLogger().setLevel(logging.INFO)
+
+def to_one_hot(lbx):
+    enc = OneHotEncoder(handle_unknown='ignore')
+    return enc.fit_transform(lbx.reshape(-1, 1))
 
 
 class E2EDatasetLoader(Dataset):
@@ -43,29 +47,38 @@ class E2EDatasetLoader(Dataset):
         return instance, target
 
 
-def to_one_hot(lbx):
-    enc = OneHotEncoder(handle_unknown='ignore')
-    return enc.fit_transform(lbx.reshape(-1, 1))
-
-
 class SANNetwork(nn.Module):
-    def __init__(self, input_size, num_classes, hidden_layer_size, dropout=0.02, num_heads=2, device="cuda"):
+    def __init__(self, input_size, num_classes, hidden_layer_size, dropout=0.02, num_heads=2, device="cuda",baseline=True):
         super(SANNetwork, self).__init__()
-        self.fc1 = nn.Linear(input_size, input_size)
+
+        #All fully connected layers required in the project
+        self.fc1 = nn.Linear(input_size, input_size)           #Fully conncted layer before the attention layer(Not used for DL based SCA)
+        self.fc2 = nn.Linear(input_size, hidden_layer_size)
+        self.fc2_MLP=nn.Linear(input_size,20)
+        self.fc3 = nn.Linear(hidden_layer_size, num_classes)
+        self.fc3_MLP=nn.Linear(20,50)
+        self.fc4_MLP=nn.Linear(50,num_classes)
         self.device = device
+
+        #All activation functions
         self.softmax = nn.Softmax(dim=1)
         self.softmax2 = nn.Softmax(dim=0)
+        self.relu=nn.ReLU()                                    #Required only in the MLP architecture
         self.activation = nn.SELU()
-        self.num_heads = num_heads
         self.sigmoid = nn.Sigmoid()
+
+        #Tunable parameters
+        self.num_heads = num_heads
         self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(input_size, hidden_layer_size)
-        self.fc3 = nn.Linear(hidden_layer_size, num_classes)
         self.multi_head = nn.ModuleList([nn.Linear(input_size, input_size) for k in range(num_heads)])
-        
-    def forward_attention(self, input_space, return_softmax=False):
+        self.baseline=baseline
+
+    #This returns the output of the attention layer    
+    def forward_attention(self, input_space, return_softmax=True):
 
         placeholder = torch.zeros(input_space.shape).to(self.device)
+
+        #Looping to aggregate all outputs of the attention heads
         for k in range(len(self.multi_head)):
             if return_softmax:
                 attended_matrix = self.multi_head[k](input_space)
@@ -88,19 +101,38 @@ class SANNetwork(nn.Module):
         output_mean = torch.mean(torch.stack(activated_weight_matrices, axis=0), axis=0)
         return output_mean
 
-    def forward(self, x):
+    #This function helps calculate the output for the MLP architecture
+    def MLP_forward(self,input):
+        out=self.fc2_MLP(input)
+        out = self.dropout(out)
+        out=self.relu(out)
+        out = self.activation(out)
+        out=self.fc3_MLP(out)
+        out=self.relu(out)
+        out=self.fc4_MLP(out)
+        return out
 
+    #This function determines the output for the baseline SAN model
+    def Original_SAN(self,input):
+        out = self.fc2(input)           # dense hidden (l2 in the paper, output)
+        out = self.dropout(out)
+        out = self.activation(out)
+        out = self.fc3(out)
+        return out
+    
+    def forward(self, x):
+        
         # attend and aggregate
         out = self.forward_attention(x)
 
-        # dense hidden (l1 in the paper)
-#        out = x
-        out = self.fc2(out)
-        out = self.dropout(out)
-        out = self.activation(out)
+        #This decides whether to run the baseline model or the MLP one
+        ########################################################################################################################
+        if(self.baseline==False):
+            out=self.MLP_forward(out)
+        else:
+            out=self.Original_SAN(out)
+        #########################################################################################################################
 
-        # dense hidden (l2 in the paper, output)
-        out = self.fc3(out)
         out = self.sigmoid(out)
         return out
 
@@ -112,10 +144,10 @@ class SANNetwork(nn.Module):
 
 class SAN:
     def __init__(self, batch_size=32, num_epochs=32, learning_rate=0.001, stopping_crit=10, hidden_layer_size=64,num_heads=1,
-                 dropout=0.2):  # , num_head=1
+                 dropout=0.2,baseline=True):  # , num_head=1
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         #self.loss = torch.nn.CrossEntropyLoss()
-        self.loss = torch.nn.BCELoss()
+        self.loss = torch.nn.BCELoss()        #The loss is set to Binary Cross Entropy Loss
         self.dropout = dropout
         self.num_heads = num_heads
         self.batch_size = batch_size
@@ -126,12 +158,15 @@ class SAN:
         self.model = None
         self.optimizer = None
         self.num_params = None
+        self.baseline=baseline
 
     def fit(self, features, labels):  # , onehot=False
         
-        label_unique=np.unique(labels)
-        nun = len(label_unique)
-        one_hot_labels = []
+        label_unique=np.unique(labels) #Unique labels
+        nun = len(label_unique)        #Length of unique labels
+        one_hot_labels = []            #Array that will hold the One hot encoded labels
+
+        #Looping through all labels to perform one hot encoding
         for j in range(len(labels)):
             lvec = np.zeros(nun)
             lj = labels[j]
@@ -139,32 +174,39 @@ class SAN:
             one_hot_labels.append(lvec)
         one_hot_labels = np.matrix(one_hot_labels)
         logging.info("Found {} unique labels.".format(nun))
+
+        #Loading the dataset
         train_dataset = E2EDatasetLoader(features, one_hot_labels)
         dataloader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=1)
+
         stopping_iteration = 0
         current_loss = np.inf
+
+        #Setting model parameters
         self.model = SANNetwork(features.shape[1], num_classes=nun, hidden_layer_size=self.hidden_layer_size, num_heads = self.num_heads,
-                                dropout=self.dropout, device=self.device).to(self.device)
+                                dropout=self.dropout, device=self.device,baseline=self.baseline).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.num_params = sum(p.numel() for p in self.model.parameters())
         logging.info("Number of parameters {}".format(self.num_params))
         logging.info("Starting training for {} epochs".format(self.num_epochs))
+
+        #Looping through the epochs
         for epoch in range(self.num_epochs):
             if stopping_iteration > self.stopping_crit:
                 logging.info("Stopping reached!")
                 break
             losses_per_batch = []
-            self.model.train()
+            self.model.train()                                 #Initializing model
             for i, (features, labels) in enumerate(dataloader):
                 features = features.float().to(self.device)
                 labels = labels.float().to(self.device)                
-                outputs = self.model(features)
-                loss = self.loss(outputs, labels)
+                outputs = self.model(features)           #Running the model. This runs the forward() function
+                loss = self.loss(outputs, labels)        #Calculating the Binary Cross Entropy loss
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                losses_per_batch.append(float(loss))
-            mean_loss = np.mean(losses_per_batch)
+                losses_per_batch.append(float(loss))    
+            mean_loss = np.mean(losses_per_batch)        #Mean of BCE losses for all batches
             if mean_loss < current_loss:
                 current_loss = mean_loss
                 stopping_iteration = 0
@@ -203,9 +245,11 @@ class SAN:
         a = [a_[1] for a_ in predictions]
         return np.array(a).flatten()
 
+    #This function helps calculate the global attention matrix for the features
     def get_mean_attention_weights(self):
         return self.model.get_mean_attention_weights().detach().cpu().numpy()
 
+    #This function helps ccalculate the instance based attention for every sample trace(Not used)
     def get_instance_attention(self, instance_space):
         if "scipy" in str(type(instance_space)):
             instance_space = instance_space.todense()
