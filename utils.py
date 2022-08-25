@@ -43,6 +43,34 @@ FEATURE_WINDOW_LOWER=45400
 FEATURE_WINDOW_UPPER=46100
 RAW_FEATURES=100000
 
+##########################################################################
+############### RESULTS ##################################################
+
+#These values were obtained from all the experiments carried out during the DR and served as inputs to the plotting functions
+#Baseline model with 2 hidden layer size
+BASELINE_2_ACCEPTED_WINDOW_POINTS=161
+BASELINE_2_MAX_WINDOW_POINTS=182
+BASELINE_2_MAX_WINDOW=[43999,44699]
+BASELINE_2_BEST_WINDOW=[44931,45631]
+
+#Baseline model with 1 hidden layer size
+BASELINE_1_ACCEPTED_WINDOW_POINTS=167
+BASELINE_1_MAX_WINDOW_POINTS=177
+BASELINE_1_MAX_WINDOW=[45972,46672]
+BASELINE_1_BEST_WINDOW=[45858,46558]
+
+#MLP model with 2 hidden layer size
+MLP_2_ACCEPTED_WINDOW_POINTS=174
+MLP_2_MAX_WINDOW_POINTS=179
+MLP_2_MAX_WINDOW=[45471,46171]
+MLP_2_BEST_WINDOW=[44969,45669]
+
+#MLP model with 1 hidden layer size
+MLP_1_ACCEPTED_WINDOW_POINTS=155
+MLP_1_MAX_WINDOW_POINTS=174
+MLP_1_MAX_WINDOW=[44355,45055]
+MLP_1_BEST_WINDOW=[45048,45748]
+
 ##############################################################################
 ##################### DATA EXTRACTION ########################################
 
@@ -128,6 +156,21 @@ def mostImportant(arr,features):
   return points,window_points
 
 
+#This function does exactly what the above function does but has a customizable window input. This function was used to make subplots.
+def mostImportant_window(arr,features,window):
+  temp=arr.argsort()[-features:][::-1]          #Calculating top features
+  points=np.array([],dtype=int)                 #Array that holds all points outside the specified window
+  window_points=np.array([],dtype=int)          #Array that holds all points inside the specified window
+
+  #Looping through all top features
+  for i in temp:
+    if(i>=window[0] and i<window[1]):
+      window_points=np.append(window_points,i)
+    else:
+      points=np.append(points,i)
+  return points,window_points
+
+
 # This function draws the scatter plot of the importance of all the features and marks them as red or blue depending on where they belong(Inside or Outside [45400,46100] window)
 def drawGraph(att_mat,features=FINAL_FEATURE_EXTRACT):
   x,x_window=mostImportant(att_mat,features)                                      #Call to most important function
@@ -145,5 +188,120 @@ def drawGraph(att_mat,features=FINAL_FEATURE_EXTRACT):
   plt.scatter(x_window+FEATURES_LOWER,y_window,color='red')    #Plotting features inside window
   plt.legend(['Points outside window','Points within window'])
   plt.show()
+
+#This function draws the sub-plots for all the models. It takes the values from the results as inputs
+def drawSubplots(att_mat,features=FINAL_FEATURE_EXTRACT):
+  
+  x2,x2_window=mostImportant_window(att_mat,features,[FEATURE_WINDOW_LOWER-FEATURES_LOWER+1,FEATURE_WINDOW_UPPER-FEATURES_LOWER+1])      #Calculates the feature indices for the [45400,46100] window
+  x3,x3_window=mostImportant_window(att_mat,features,[MLP_2_MAX_WINDOW[0]-FEATURES_LOWER+1,MLP_2_MAX_WINDOW[1]-FEATURES_LOWER+1])        #Calculates the feature indices for the window with the maximum features
+  x4,x4_window=mostImportant_window(att_mat,features,[MLP_2_BEST_WINDOW[0]-FEATURES_LOWER+1,MLP_2_BEST_WINDOW[1]-FEATURES_LOWER+1])                                                                    #Calculates the feature indices for the window with the best cumulative importance
+ 
+  #Calculating x and y values for all features within the [FEATURES_LOWER,FEATURES_UPPER] window
+  x=np.argsort(att_mat)[-1:-700:-1]
+  y=att_mat[x]
+
+  #Calculating importance values for the corresponding feature indices
+  y2=att_mat[x2]
+  y2_window=att_mat[x2_window]
+  y3=att_mat[x3]
+  y3_window=att_mat[x3_window]
+  y4=att_mat[x4]
+  y4_window=att_mat[x4_window]
+
+  #Plotting sub-plots
+  plt.figure(figsize=(16,10))
+  plt.xlabel('Features')
+  plt.ylabel('Importance')
+
+  #Overall sub-plot
+  plt.subplot(2,2,1)
+  plt.scatter(x+44000,y)
+  plt.xlabel('Features')
+  plt.ylabel('Importance')
+
+  #Plotting sub-plot for accepted window
+  plt.subplot(2,2,2)
+  plt.scatter(x2+FEATURES_LOWER,y2)
+  plt.scatter(x2_window+FEATURES_LOWER,y2_window,color='red')
+  plt.xlabel('Features')
+  plt.ylabel('Importance')
+  plt.legend(['Features outside window','Features within [45400,46100]'])
+
+  #Plotting sub-plot for window with maximum features
+  plt.subplot(2,2,3)
+  plt.scatter(x3+FEATURES_LOWER,y3)
+  plt.scatter(x3_window+FEATURES_LOWER,y3_window,color='green')
+  plt.xlabel('Features')
+  plt.ylabel('Importance')
+  plt.legend(['Features outside window','Features within max points window'])
+
+  #Plotting sub-plots for window with highest importance
+  plt.subplot(2,2,4)
+  plt.scatter(x4+FEATURES_LOWER,y4)
+  plt.scatter(x4_window+FEATURES_LOWER,y4_window,color='orange')
+  plt.xlabel('Features')
+  plt.ylabel('Importance')
+  plt.legend(['Features outside window','Features within best window'])
+  plt.show()
+
+##############################################################################################
+###################### WINDOW RE-CALCULATION METRICS ##########################################
+
+#This function calculates the best window within the ['FEATURES_LOWER','FEATURES_UPPER'] window. The metric is the cumulative sum of all importances within the window.
+def findbestWindow(att_mat):
+    temp=att_mat.argsort()[-FINAL_FEATURE_EXTRACT:][::-1]  #Calculating top features
+    temp_index_sort=np.sort(temp)                          #Array of all sorted indices from the top features
+    temp_vals_sort=att_mat[temp_index_sort]                #The importance values corresponding to the indices
+    
+    index=np.where(temp_index_sort>=FINAL_FEATURE_EXTRACT)[0][0] #Finding out where the first occurrence of the 700th window is
+    sum=np.sum(temp_vals_sort[0:index])                          #The sum of importances for the first window
+
+    #Initializing the window and the highest sum window
+    val_max=0
+    window=[FEATURES_LOWER-1,FINAL_FEATURE_EXTRACT+FEATURES_LOWER-1]
+
+    #Shifting the window using a for loop
+    for i in range(1,FINAL_FEATURE_EXTRACT-index):
+      temp_sum= sum-temp_vals_sort[i-1]+temp_vals_sort[index+i-1]           #Calculating the sum of importances for every window
+      if(temp_sum>val_max):
+
+        #Updating the best values
+        val_max=temp_sum
+        window=[temp_index_sort[i]+FEATURES_LOWER-1,FINAL_FEATURE_EXTRACT+temp_index_sort[i]+FEATURES_LOWER-1]
+
+    return window
+
+
+#This function helps calculate the window with the most number of top features
+def findmaxWindow(att_mat):
+    temp=att_mat.argsort()[-FINAL_FEATURE_EXTRACT:][::-1]  #Calculating top features
+    temp_index_sort=np.sort(temp).reshape((-1,1))          #Array of sorted indices
+    
+    #Initializing the index, the maximum length and the window
+    index=0
+    len_max=0
+    window=[FEATURES_LOWER-1,FEATURES_LOWER+FINAL_FEATURE_EXTRACT-1]
+
+    #Shifting the window using a for loop
+    for i in range(temp_index_sort.shape[0]):
+      start=temp_index_sort[i][0]
+      end=start+FINAL_FEATURE_EXTRACT
+
+      #Breaking out of loop if it exceeds bounds
+      if(end>=FEATURES_UPPER-FEATURES_LOWER-1):
+        break
+      print(end)
+      try:
+        index=np.where(temp_index_sort[index:]>=end)[0][0] + index
+      except:
+        break
+      length=index-i                                               #Calculating new length
+
+      #Updating length and window
+      if(length>len_max):
+        len_max=length
+        window=[start+FEATURES_LOWER-1,start+FEATURES_LOWER+FINAL_FEATURE_EXTRACT-1]
+
+    return window
 
 #############################################################################################################################################
