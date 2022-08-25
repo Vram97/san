@@ -45,8 +45,8 @@ RAW_FEATURES=100000
 
 ##########################################################################
 ############### RESULTS ##################################################
+""These values were obtained from all the experiments carried out during the DR and served as inputs to the plotting functions""
 
-#These values were obtained from all the experiments carried out during the DR and served as inputs to the plotting functions
 #Baseline model with 2 hidden layer size
 BASELINE_2_ACCEPTED_WINDOW_POINTS=161
 BASELINE_2_MAX_WINDOW_POINTS=182
@@ -194,7 +194,7 @@ def drawSubplots(att_mat,features=FINAL_FEATURE_EXTRACT):
   
   x2,x2_window=mostImportant_window(att_mat,features,[FEATURE_WINDOW_LOWER-FEATURES_LOWER+1,FEATURE_WINDOW_UPPER-FEATURES_LOWER+1])      #Calculates the feature indices for the [45400,46100] window
   x3,x3_window=mostImportant_window(att_mat,features,[MLP_2_MAX_WINDOW[0]-FEATURES_LOWER+1,MLP_2_MAX_WINDOW[1]-FEATURES_LOWER+1])        #Calculates the feature indices for the window with the maximum features
-  x4,x4_window=mostImportant_window(att_mat,features,[MLP_2_BEST_WINDOW[0]-FEATURES_LOWER+1,MLP_2_BEST_WINDOW[1]-FEATURES_LOWER+1])                                                                    #Calculates the feature indices for the window with the best cumulative importance
+  x4,x4_window=mostImportant_window(att_mat,features,[MLP_2_BEST_WINDOW[0]-FEATURES_LOWER+1,MLP_2_BEST_WINDOW[1]-FEATURES_LOWER+1])      #Calculates the feature indices for the window with the best cumulative importance
  
   #Calculating x and y values for all features within the [FEATURES_LOWER,FEATURES_UPPER] window
   x=np.argsort(att_mat)[-1:-700:-1]
