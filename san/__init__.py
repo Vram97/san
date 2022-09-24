@@ -20,11 +20,12 @@ np.random.seed(123321)
 logging.basicConfig(format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 logging.getLogger().setLevel(logging.INFO)
 
+#This function performs one-hot encoding on the input data
 def to_one_hot(lbx):
     enc = OneHotEncoder(handle_unknown='ignore')
     return enc.fit_transform(lbx.reshape(-1, 1))
 
-
+#
 class E2EDatasetLoader(Dataset):
     def __init__(self, features, targets=None):  # , transform=None
         features = sparse.csr_matrix(features)
