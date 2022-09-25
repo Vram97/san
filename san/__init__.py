@@ -25,7 +25,7 @@ def to_one_hot(lbx):
     enc = OneHotEncoder(handle_unknown='ignore')
     return enc.fit_transform(lbx.reshape(-1, 1))
 
-#
+#Creates a sparse matrix from the features for greater speed of computation
 class E2EDatasetLoader(Dataset):
     def __init__(self, features, targets=None):  # , transform=None
         features = sparse.csr_matrix(features)
@@ -47,7 +47,7 @@ class E2EDatasetLoader(Dataset):
             target = None
         return instance, target
 
-
+#This class contains all the information about the model parameters and is called from the 'SAN' class
 class SANNetwork(nn.Module):
     def __init__(self, input_size, num_classes, hidden_layer_size, dropout=0.02, num_heads=2, device="cuda",baseline=True):
         super(SANNetwork, self).__init__()
@@ -92,12 +92,13 @@ class SANNetwork(nn.Module):
             out = self.softmax(out)
         return out
 
+    #This function is called from the method inside SAN, to calculate the attention weights for each feature
     def get_mean_attention_weights(self):
         activated_weight_matrices = []
         for head in self.multi_head:
             wm = head.weight.data
             diagonal_els = torch.diag(wm)
-            activated_diagonal = self.softmax2(diagonal_els)
+            activated_diagonal = self.softmax2(diagonal_els)        #Activating the diagonal elements with a softmax function
             activated_weight_matrices.append(activated_diagonal)
         output_mean = torch.mean(torch.stack(activated_weight_matrices, axis=0), axis=0)
         return output_mean
@@ -144,6 +145,8 @@ class SANNetwork(nn.Module):
     def get_softmax_hadamand_layer(self):
         return self.get_mean_attention_weights()
 
+#The SAN class contains all the hyper-parameters for the model and the details of the network
+#An instance of this class is first created with all the required hyper-parameters and then the fit method is called with x and y values for the model to begin the process to train.
 class SAN:
     def __init__(self, batch_size=32, num_epochs=32, learning_rate=0.001, stopping_crit=10, hidden_layer_size=64,num_heads=1,
                  dropout=0.2,baseline=True):  # , num_head=1
@@ -161,7 +164,8 @@ class SAN:
         self.optimizer = None
         self.num_params = None
         self.baseline=baseline
-
+    
+    #Fit method sets the model for training
     def fit(self, features, labels):  # , onehot=False
         
         label_unique=np.unique(labels) #Unique labels
@@ -186,13 +190,13 @@ class SAN:
 
         #Setting model parameters
         self.model = SANNetwork(features.shape[1], num_classes=nun, hidden_layer_size=self.hidden_layer_size, num_heads = self.num_heads,
-                                dropout=self.dropout, device=self.device,baseline=self.baseline).to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.num_params = sum(p.numel() for p in self.model.parameters())
+                                dropout=self.dropout, device=self.device,baseline=self.baseline).to(self.device)                          #The values passeed into SAN go into this model to train the model
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)                          #ADAM optimizer
+        self.num_params = sum(p.numel() for p in self.model.parameters())                                          #Calculation of the total parameters for the model
         logging.info("Number of parameters {}".format(self.num_params))
         logging.info("Starting training for {} epochs".format(self.num_epochs))
 
-        #Looping through the epochs
+        #Looping through the epochs 
         for epoch in range(self.num_epochs):
             if stopping_iteration > self.stopping_crit:
                 logging.info("Stopping reached!")
@@ -209,6 +213,8 @@ class SAN:
                 self.optimizer.step()
                 losses_per_batch.append(float(loss))    
             mean_loss = np.mean(losses_per_batch)        #Mean of BCE losses for all batches
+
+            #This part of the code checks the number of iterations for which the mean_loss goes up
             if mean_loss < current_loss:
                 current_loss = mean_loss
                 stopping_iteration = 0
@@ -216,6 +222,7 @@ class SAN:
                 stopping_iteration += 1
             logging.info("epoch {}, mean loss per batch {}".format(epoch, mean_loss))
 
+    #Not used
     def predict(self, features, return_proba=False):
         test_dataset = E2EDatasetLoader(features, None)
         predictions = []
@@ -233,7 +240,7 @@ class SAN:
             a = [a_ for a_ in predictions]
             return a
 
-
+    #Not used
     def predict_proba(self, features):
         test_dataset = E2EDatasetLoader(features, None)
         predictions = []
@@ -257,3 +264,4 @@ class SAN:
             instance_space = instance_space.todense()
         instance_space = torch.from_numpy(instance_space).float().to(self.device)
         return self.model.get_attention(instance_space).detach().cpu().numpy()
+
