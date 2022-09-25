@@ -1,3 +1,7 @@
+"""This file helps you run "Pythopn3 setup.py" with options from the command line with options given by the documentation of setup.
+This file is not required to run our code for the DR"""
+
+#Importing libraries
 import os
 from setuptools import setup, find_packages
 
